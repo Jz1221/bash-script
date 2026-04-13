@@ -1,140 +1,127 @@
 #!/bin/bash
 
-TITLE="Client Server System Deployment"
+TITLE="Advanced Server Deployment & OS Context Audit System"
 echo "$TITLE"
 echo "--------------------------------------------"
 
-SHARE_DIR="/srv/share"
+# FILE DIRECTORY
+SHARE_DIR="/srv/share/neuro_data"
+STRESS_DIR="/tmp/bhi_signal_stress"
 
-# =========================
-# APACHE SETUP
-# =========================
-echo "[1] Checking Apache..."
+# 1. (Apache, Samba, Cockpit)
+echo "[System] Initializing Services..."
+sudo dnf install httpd samba samba-client samba-common cockpit -y &> /dev/null
 
-if ! rpm -q httpd &> /dev/null
-then
-    echo "Installing Apache..."
-    sudo dnf install httpd -y
-else
-    echo "Apache already installed"
-fi
+sudo systemctl enable --now httpd
+sudo systemctl enable --now smb
+sudo systemctl enable --now cockpit.socket
 
-sudo systemctl enable httpd
-sudo systemctl start httpd
-
-echo "Creating Web Page..."
-echo "<h1>Client Server Web System Running</h1>" | sudo tee /var/www/html/test.html
-
-# Firewall HTTP
-if ! firewall-cmd --list-services | grep -q http
-then
-    sudo firewall-cmd --permanent --add-service=http
-    sudo firewall-cmd --reload
-fi
-
-# =========================
-# SAMBA SETUP
-# =========================
-echo "[2] Checking Samba..."
-
-if ! rpm -q samba &> /dev/null
-then
-    echo "Installing Samba..."
-    sudo dnf install samba samba-client samba-common -y
-else
-    echo "Samba already installed"
-fi
-
-# Shared folder
-if [ ! -d "$SHARE_DIR" ]
-then
-    sudo mkdir -p $SHARE_DIR
-fi
-
+sudo mkdir -p $SHARE_DIR
 sudo chmod -R 777 $SHARE_DIR
 
-echo "Hello World from Samba Share" | sudo tee $SHARE_DIR/index.txt
+# 防火墙配置
+for svc in http samba cockpit; do
+    if ! firewall-cmd --list-services | grep -q $svc; then
+        sudo firewall-cmd --permanent --add-service=$svc &> /dev/null
+    fi
+done
+sudo firewall-cmd --reload &> /dev/null
 
-# Samba config
-if ! grep -q "MyShare" /etc/samba/smb.conf
-then
-    echo "Configuring Samba share..."
+echo ">> Deployment Complete. Services are running."
+echo ""
 
-    sudo bash -c "cat >> /etc/samba/smb.conf <<EOF
-
-[MyShare]
-   path = /srv/share
-   browsable = yes
-   writable = yes
-   read only = no
-   guest ok = no
-   valid users = student
-EOF"
-fi
-
-# Firewall Samba
-if ! firewall-cmd --list-services | grep -q samba
-then
-    sudo firewall-cmd --permanent --add-service=samba
-    sudo firewall-cmd --reload
-fi
-
-# Start services
-sudo systemctl enable smb
-sudo systemctl start smb
-
-echo "SETUP COMPLETE"
-echo "Web Server  : http://<server-ip>"
-echo "File Share  : smb://<server-ip>/MyShare"
-
-# =========================
-# MENU SYSTEM
-# =========================
+# MENU SYSTEM 
 while true
 do
+    echo "=================================================="
+    echo "  SERVER CONTROL PANEL & OS CONTEXT AUDIT"
+    echo "=================================================="
+    echo "--- Standard Services ---"
+    echo "1. Restart All Services (Web, SMB, Cockpit)"
+    echo "2. Check Services Status"
     echo ""
-    echo "=============================="
-    echo " CONTROL PANEL (Web + Samba)"
-    echo "=============================="
-    echo "1. Start Apache"
-    echo "2. Stop Apache"
-    echo "3. Status Apache"
+    echo "--- [Assignment] OS Context Simulation ---"
+    echo "3. Run Context 1: Config Integrity Audit (ls -l)"
+    echo "4. Run Context 2: Inode Pressure Stress Test (df -i)"
     echo ""
-    echo "4. Start Samba"
-    echo "5. Stop Samba"
-    echo "6. Status Samba"
-    echo ""
-    echo "7. Restart Both"
-    echo "8. Exit"
-    echo "=============================="
+    echo "0. Exit"
+    echo "=================================================="
 
-    read -p "Enter choice: " choice
-
+    read -p "Enter choice [0-4]: " choice
     echo ""
 
     case $choice in
-
-    1) sudo systemctl start httpd ;;
-    2) sudo systemctl stop httpd ;;
-    3) sudo systemctl status httpd --no-pager ;;
-
-    4) sudo systemctl start smb ;;
-    5) sudo systemctl stop smb ;;
-    6) sudo systemctl status smb --no-pager ;;
-
-    7)
-        sudo systemctl restart httpd
-        sudo systemctl restart smb
-        echo "Both services restarted"
+    1)
+        sudo systemctl restart httpd smb cockpit.socket
+        echo "[OK] All services restarted."
+        ;;
+    2)
+        echo "--- Apache ---"; systemctl is-active httpd
+        echo "--- Samba ---"; systemctl is-active smb
+        echo "--- Cockpit ---"; systemctl is-active cockpit.socket
+        ;;
+    
+    # Assignment Context 1: Config Integrity
+    3)
+        echo ">> EXECUTING OS CONTEXT 1: Config Integrity <<"
+        echo "[*] Task Category: Config Integrity"
+        echo "[*] OS Stress Condition: Normal"
+        echo "[*] Resource Constraint: None"
+        
+        TARGET_FILE="/etc/samba/smb.conf"
+        
+        # Trigger Condition: Permission change
+        echo "[!] Trigger Condition activated: Modifying permissions on $TARGET_FILE..."
+        sudo chmod 777 $TARGET_FILE
+        sleep 1
+        
+        # Observation Source: ls -l
+        echo "--------------------------------------------"
+        echo "[>] OBSERVATION SOURCE: ls -l"
+        echo "--------------------------------------------"
+        ls -l $TARGET_FILE
+        
+        echo "[*] Restoring safe permissions (644)..."
+        sudo chmod 644 $TARGET_FILE
+        ls -l $TARGET_FILE
+        echo ">> Context 1 Execution Complete."
         ;;
 
-    8)
-        echo "Exiting..."
+    # Assignment Context 2: File System & Inode Pressure
+    4)
+        echo ">> EXECUTING OS CONTEXT 2: File System Inode Pressure <<"
+        echo "[*] Task Category: File System"
+        echo "[*] OS Stress Condition: I/O saturation"
+        echo "[*] Resource Constraint: Inode pressure"
+        
+        mkdir -p $STRESS_DIR
+        FILE_THRESHOLD=50000
+        
+        # Trigger Condition: Threshold-based & I/O Saturation
+        echo "[!] Trigger Condition: Threshold-based ($FILE_THRESHOLD files)"
+        echo "[!] Applying I/O Saturation and Inode Pressure..."
+        echo "    (Simulating massive influx of 32ms TDMA multi-physiological signal slices)"
+        
+        seq 1 $FILE_THRESHOLD | xargs -I{} -P 20 touch $STRESS_DIR/eeg_slice_{}.dat 2>/dev/null
+        
+        # Observation Source: df -i
+        echo "--------------------------------------------"
+        echo "[>] OBSERVATION SOURCE: df -i"
+        echo "--------------------------------------------"
+        df -i $STRESS_DIR
+        
+        echo ""
+        echo "[*] Stress test concluded. Cleaning up to release Inodes..."
+        rm -rf $STRESS_DIR
+        echo ">> Context 2 Execution Complete."
+        ;;
+
+    0)
+        echo "Exiting Control Panel..."
         break
         ;;
-
     *)
-        echo "Invalid option"
+        echo "Invalid option."
         ;;
     esac
 done
